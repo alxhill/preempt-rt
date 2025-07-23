@@ -1,6 +1,6 @@
 [package]
 name = "preempt-rt"
-version = "0.2.1"
+version = "0.3.0"
 edition = "2024"
 license = "MIT"
 description = "A lightweight Rust library for using the kernel's PREEMPT_RT scheduling functionality"
