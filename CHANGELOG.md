@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.2.1](https://github.com/alxhill/preempt-rt/compare/v0.2.0...v0.2.1) - 2025-07-23
+
+### Other
+
+- add docs to main module ([#6](https://github.com/alxhill/preempt-rt/pull/6))
+
 ## [0.2.0](https://github.com/alxhill/preempt-rt/compare/v0.1.1...v0.2.0) - 2025-07-23
 
 ### Added
