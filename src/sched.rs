@@ -1,6 +1,5 @@
 use crate::sched::PreemptRtError::{PriorityAboveMax, PriorityBelowMin};
 use libc::{c_int, pid_t};
-use std::mem::MaybeUninit;
 use std::{fmt, result};
 use thiserror::Error;
 
@@ -17,14 +16,8 @@ pub enum PreemptRtError {
     PriorityAboveMax(c_int, c_int),
     #[error("priority {0} is lower than min priority {1}")]
     PriorityBelowMin(c_int, c_int),
-}
-
-fn handle_errno(result: c_int) -> Result<c_int> {
-    if result == -1 {
-        Err(PreemptRtError::Errno(unsafe { *libc::__errno_location() }))
-    } else {
-        Ok(result)
-    }
+    #[error("current platform {0} does not support preempt-rt")]
+    NonLinuxPlatform(&'static str),
 }
 
 #[derive(Debug, Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Hash)]
@@ -56,7 +49,11 @@ impl fmt::Display for Pid {
 /// on the differences in behavior.
 pub enum Scheduler {
     /// The default scheduler on non-realtime linux - also known as SCHED_OTHER.
+    #[cfg(target_os = "linux")]
     SCHED_NORMAL = libc::SCHED_NORMAL,
+    /// The default scheduler on non-realtime linux - also known as SCHED_OTHER.
+    #[cfg(target_os = "macos")]
+    SCHED_NORMAL = libc::SCHED_OTHER,
     /// The realtime FIFO scheduler. All FIFO threads have priority higher than 0 and
     /// preempt SCHED_NORMAL threads. Threads are executed in priority order, using
     /// first-in-first-out lists to handle two threads with the same priority.
@@ -66,13 +63,16 @@ pub enum Scheduler {
     /// Batch scheduler, similar to SCHED_OTHER but assumes the thread is CPU intensive.
     /// The kernel applies a mild penalty to switching to this thread.
     /// As of Linux 2.6.16, the only valid priority is 0.
+    #[cfg(target_os = "linux")]
     SCHED_BATCH = libc::SCHED_BATCH,
     /// The idle scheduler only executes the thread when there are idle CPUs. SCHED_IDLE
     /// threads have no progress guarantees.
+    #[cfg(target_os = "linux")]
     SCHED_IDLE = libc::SCHED_IDLE,
     /// Deadline scheduler, attempting to provide guaranteed latency for requests.
     /// See the [linux kernel docs](https://docs.kernel.org/scheduler/sched-deadline.html)
     /// for details.
+    #[cfg(target_os = "linux")]
     SCHED_DEADLINE = libc::SCHED_DEADLINE,
 }
 
@@ -81,14 +81,31 @@ impl TryFrom<c_int> for Scheduler {
 
     fn try_from(value: c_int) -> Result<Self> {
         match value {
+            #[cfg(target_os = "linux")]
             libc::SCHED_NORMAL => Ok(Scheduler::SCHED_NORMAL),
+            #[cfg(target_os = "macos")]
+            libc::SCHED_OTHER => Ok(Scheduler::SCHED_NORMAL),
             libc::SCHED_FIFO => Ok(Scheduler::SCHED_FIFO),
             libc::SCHED_RR => Ok(Scheduler::SCHED_RR),
+            #[cfg(target_os = "linux")]
             libc::SCHED_BATCH => Ok(Scheduler::SCHED_BATCH),
+            #[cfg(target_os = "linux")]
             libc::SCHED_IDLE => Ok(Scheduler::SCHED_IDLE),
+            #[cfg(target_os = "linux")]
             libc::SCHED_DEADLINE => Ok(Scheduler::SCHED_DEADLINE),
             _ => Err(PreemptRtError::UnknownScheduler(value)),
         }
+    }
+}
+
+fn handle_errno(result: c_int) -> Result<c_int> {
+    if result == -1 {
+        #[cfg(target_os = "linux")]
+        return Err(PreemptRtError::Errno(unsafe { *libc::__errno_location() }));
+        #[cfg(target_os = "macos")]
+        return Err(PreemptRtError::Errno(unsafe { *libc::__error() }));
+    } else {
+        Ok(result)
     }
 }
 
@@ -130,6 +147,7 @@ pub struct SchedulerParams {
     pub priority: c_int,
 }
 
+#[cfg(target_os = "linux")]
 impl From<SchedulerParams> for libc::sched_param {
     #[cfg(not(any(target_env = "musl", target_env = "ohos")))]
     fn from(param: SchedulerParams) -> Self {
@@ -185,6 +203,7 @@ impl<T: IntoSchedParam> IntoSchedParam for Option<T> {
     }
 }
 
+#[cfg_attr(target_os = "macos", allow(unused))]
 #[derive(Debug, Clone)]
 pub struct ParameterizedScheduler {
     scheduler: Scheduler,
@@ -192,8 +211,12 @@ pub struct ParameterizedScheduler {
 }
 
 impl ParameterizedScheduler {
+    #[cfg_attr(target_os = "macos", allow(unused_variables))]
     pub fn set_on(self, pid: Pid) -> Result<()> {
-        set_scheduler(pid, self.scheduler, self.params)
+        #[cfg(target_os = "linux")]
+        return set_scheduler(pid, self.scheduler, self.params);
+        #[cfg(target_os = "macos")]
+        return Err(PreemptRtError::NonLinuxPlatform("macos"));
     }
 
     pub fn set_current(self) -> Result<()> {
@@ -201,44 +224,50 @@ impl ParameterizedScheduler {
     }
 }
 
-/// Get the current scheduler in use for a given process or thread.
-/// Using `Pid::from_raw(0)` will fetch the scheduler for the calling thread.
-pub fn get_scheduler(pid: Pid) -> Result<Scheduler> {
-    let res = unsafe { libc::sched_getscheduler(pid.into()) };
-    handle_errno(res).and_then(Scheduler::try_from)
+#[cfg(target_os = "linux")]
+mod linux {
+    /// Get the current scheduler in use for a given process or thread.
+    /// Using `Pid::from_raw(0)` will fetch the scheduler for the calling thread.
+    pub fn get_scheduler(pid: Pid) -> Result<Scheduler> {
+        let res = unsafe { libc::sched_getscheduler(pid.into()) };
+        handle_errno(res).and_then(Scheduler::try_from)
+    }
+
+    /// Set the scheduler and parameters for a given process or thread.
+    /// Using `Pid::from_raw(0)` will set the scheduler for the calling thread.
+    ///
+    /// SCHED_OTHER, SCHED_IDLE and SCHED_BATCH only support a priority of `0`, and can be used
+    /// outside a Linux PREEMPT_RT context.
+    ///
+    /// SCHED_FIFO and SCHED_RR allow priorities between the min and max inclusive.
+    ///
+    /// SCHED_DEADLINE cannot be set with this function, `libc::sched_setattr` must be used instead.
+    pub fn set_scheduler(pid: Pid, scheduler: Scheduler, param: SchedulerParams) -> Result<()> {
+        let param: libc::sched_param = param.into();
+        let res = unsafe { libc::sched_setscheduler(pid.into(), scheduler as c_int, &param) };
+
+        handle_errno(res).map(drop)
+    }
+
+    /// Get the schedule parameters (currently only priority) for a given thread.
+    /// Using `Pid::from_raw(0)` will return the parameters for the calling thread.
+    pub fn get_scheduler_params(pid: Pid) -> Result<SchedulerParams> {
+        let mut param: MaybeUninit<libc::sched_param> = MaybeUninit::uninit();
+        let res = unsafe { libc::sched_getparam(pid.into(), param.as_mut_ptr()) };
+
+        handle_errno(res).map(|_| unsafe { param.assume_init() }.into())
+    }
+    /// Set the schedule parameters (currently only priority) for a given thread.
+    /// Using `Pid::from_raw(0)` will return the parameters for the calling thread.
+    ///
+    /// Changing the priority to something other than `0` requires using a SCHED_FIFO or SCHED_RR
+    /// and using a Linux kernel with PREEMPT_RT enabled.
+    pub fn set_scheduler_params(pid: Pid, param: SchedulerParams) -> Result<()> {
+        let param: libc::sched_param = param.into();
+        let res = unsafe { libc::sched_setparam(pid.into(), &param) };
+        handle_errno(res).map(drop)
+    }
 }
 
-/// Set the scheduler and parameters for a given process or thread.
-/// Using `Pid::from_raw(0)` will set the scheduler for the calling thread.
-///
-/// SCHED_OTHER, SCHED_IDLE and SCHED_BATCH only support a priority of `0`, and can be used
-/// outside a Linux PREEMPT_RT context.
-///
-/// SCHED_FIFO and SCHED_RR allow priorities between the min and max inclusive.
-///
-/// SCHED_DEADLINE cannot be set with this function, `libc::sched_setattr` must be used instead.
-pub fn set_scheduler(pid: Pid, scheduler: Scheduler, param: SchedulerParams) -> Result<()> {
-    let param: libc::sched_param = param.into();
-    let res = unsafe { libc::sched_setscheduler(pid.into(), scheduler as c_int, &param) };
-
-    handle_errno(res).map(drop)
-}
-
-/// Get the schedule parameters (currently only priority) for a given thread.
-/// Using `Pid::from_raw(0)` will return the parameters for the calling thread.
-pub fn get_scheduler_params(pid: Pid) -> Result<SchedulerParams> {
-    let mut param: MaybeUninit<libc::sched_param> = MaybeUninit::uninit();
-    let res = unsafe { libc::sched_getparam(pid.into(), param.as_mut_ptr()) };
-
-    handle_errno(res).map(|_| unsafe { param.assume_init() }.into())
-}
-/// Set the schedule parameters (currently only priority) for a given thread.
-/// Using `Pid::from_raw(0)` will return the parameters for the calling thread.
-///
-/// Changing the priority to something other than `0` requires using a SCHED_FIFO or SCHED_RR
-/// and using a Linux kernel with PREEMPT_RT enabled.
-pub fn set_scheduler_params(pid: Pid, param: SchedulerParams) -> Result<()> {
-    let param: libc::sched_param = param.into();
-    let res = unsafe { libc::sched_setparam(pid.into(), &param) };
-    handle_errno(res).map(drop)
-}
+#[cfg(target_os = "linux")]
+use linux::*;
