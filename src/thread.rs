@@ -1,4 +1,4 @@
-use crate::sched::{IntoSchedParam, PreemptRtError, Scheduler};
+use crate::sched::{IntoSchedParam, Scheduler};
 use std::thread;
 
 pub fn spawn<F, T>(scheduler: Scheduler, param: impl IntoSchedParam, f: F) -> thread::JoinHandle<T>
@@ -20,7 +20,7 @@ pub fn try_spawn<F, T>(
     f: F,
 ) -> thread::JoinHandle<T>
 where
-    F: FnOnce(crate::sched::Result<()>) -> T,
+    F: FnOnce(crate::sched::RtResult<()>) -> T,
     F: Send + 'static,
     T: Send + 'static,
 {
@@ -40,7 +40,7 @@ pub fn try_spawn<F, T>(
     f: F,
 ) -> thread::JoinHandle<T>
 where
-    F: FnOnce(crate::sched::Result<()>) -> T,
+    F: FnOnce(crate::sched::RtResult<()>) -> T,
     F: Send + 'static,
     T: Send + 'static,
 {
