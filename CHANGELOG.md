@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.1.1](https://github.com/alxhill/preempt-rt/compare/v0.1.0...v0.1.1) - 2025-07-23
+
+### Other
+
+- fix cross-platform builds ([#2](https://github.com/alxhill/preempt-rt/pull/2))
+- release v0.1.0 ([#1](https://github.com/alxhill/preempt-rt/pull/1))
+
 ## [0.1.0](https://github.com/alxhill/preempt-rt/releases/tag/v0.1.0) - 2025-07-23
 
 ### Added
