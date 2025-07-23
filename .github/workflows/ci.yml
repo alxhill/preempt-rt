@@ -11,13 +11,17 @@ env:
 
 jobs:
   build:
+    strategy:
+      matrix:
+        arch: ["aarch64", "x86_64"]
+        libc: ["gnu", "musl"]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
       - name: Set rustup toolchain
         run: rustup default stable
       - name: Build
-        run: cargo build
+        run: cargo build --target ${{matrix.arch}}-unknown-linux-$${{matrix.libc}}
 
   test:
     runs-on: ubuntu-latest
@@ -25,3 +29,4 @@ jobs:
       - uses: actions/checkout@v4
       - name: Run Tests
         run: cargo test --workspace
+
