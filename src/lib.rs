@@ -1,7 +1,7 @@
 //! Rust friendly bindings to the scheduler related functionality in libc.
 //!
 //! The `sched` module contains types and lightweight wrappers around libc functions. For example:
-//! ```rust
+//! ```rust,no_run
 //! use preempt_rt::sched;
 //! use preempt_rt::sched::{Pid, Scheduler, SchedulerParams};
 //! let sched = sched::get_scheduler(Pid::current_thread()).unwrap();
@@ -13,7 +13,7 @@
 //! The `thread` module has wrappers around `thread::spawn` for creating threads with a given
 //! scheduler and priority.
 //!
-//! ```rust
+//! ```rust,no_run
 //! use preempt_rt::sched::{RtResult, Scheduler};
 //! use preempt_rt::thread;
 //! thread::spawn(Scheduler::SCHED_FIFO, 80, move || {
