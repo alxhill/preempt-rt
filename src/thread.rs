@@ -1,8 +1,4 @@
-use crate::sched::PreemptRtError::PriorityAboveMax;
-use crate::sched::{
-    IntoSchedParam, Pid, Scheduler, SchedulerParams, get_scheduler, get_scheduler_params,
-    set_scheduler,
-};
+use crate::sched::{IntoSchedParam, Scheduler};
 use std::thread;
 
 pub fn spawn<F, T>(scheduler: Scheduler, param: impl IntoSchedParam, f: F) -> thread::JoinHandle<T>
