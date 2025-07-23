@@ -21,7 +21,7 @@ jobs:
       - name: Set rustup toolchain
         run: rustup default stable
       - name: Add requested target
-        run: rustup toolchain install stable-${{matrix.arch}}-unknown-linux-${{matrix.libc}}
+        run: rustup target add stable-${{matrix.arch}}-unknown-linux-${{matrix.libc}}
       - name: Build
         run: cargo build --target ${{matrix.arch}}-unknown-linux-${{matrix.libc}}
 
