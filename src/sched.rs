@@ -126,9 +126,9 @@ impl Scheduler {
         let max = self.priority_max()?;
         let min = self.priority_min()?;
         if priority > max {
-            Err(PriorityAboveMax(priority, max).into())
+            Err(PriorityAboveMax(priority, max))
         } else if priority < min {
-            Err(PriorityBelowMin(priority, min).into())
+            Err(PriorityBelowMin(priority, min))
         } else {
             Ok(ParameterizedScheduler {
                 scheduler: self,

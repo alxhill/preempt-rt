@@ -44,5 +44,5 @@ where
     F: Send + 'static,
     T: Send + 'static,
 {
-    thread::spawn(move || f(Err(PreemptRtError::NonLinuxPlatform("macos"))))
+    thread::spawn(move || f(Err(crate::sched::PreemptRtError::NonLinuxPlatform("macos"))))
 }
