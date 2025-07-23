@@ -20,15 +20,25 @@ jobs:
       - uses: actions/checkout@v4
       - name: Set rustup toolchain
         run: rustup default stable
-      - name: Add requested target
+      - name: Add requested targets
         run: rustup target add ${{matrix.arch}}-unknown-linux-${{matrix.libc}}
       - name: Build
         run: cargo build --target ${{matrix.arch}}-unknown-linux-${{matrix.libc}}
+      - name: Check format
+        run: cargo fmt --all --check
+      - name: Check clippy
+        run: cargo clippy --all-targets --all-features -- -D warnings
+
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
 
   test:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+      - name: Set rustup toolchain
+        run: rustup default stable
       - name: Run Tests
         run: cargo test --workspace
-

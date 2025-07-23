@@ -13,13 +13,14 @@ where
     })
 }
 
+#[cfg(target_os = "linux")]
 pub fn try_spawn<F, T>(
     scheduler: Scheduler,
     param: impl IntoSchedParam,
     f: F,
 ) -> thread::JoinHandle<T>
 where
-    F: FnOnce(crate::sched::Result<()>) -> T,
+    F: FnOnce(crate::sched::RtResult<()>) -> T,
     F: Send + 'static,
     T: Send + 'static,
 {
@@ -30,4 +31,18 @@ where
             .and_then(|ps| ps.set_current());
         f(set_result)
     })
+}
+
+#[cfg(all(feature = "non-linux-stubs", target_os = "macos"))]
+pub fn try_spawn<F, T>(
+    _scheduler: Scheduler,
+    _param: impl IntoSchedParam,
+    f: F,
+) -> thread::JoinHandle<T>
+where
+    F: FnOnce(crate::sched::RtResult<()>) -> T,
+    F: Send + 'static,
+    T: Send + 'static,
+{
+    thread::spawn(move || f(Err(crate::sched::PreemptRtError::NonLinuxPlatform("macos"))))
 }
