@@ -7,6 +7,7 @@ use thiserror::Error;
 pub type RtResult<T> = Result<T, PreemptRtError>;
 
 #[derive(Debug, Error)]
+/// PreemptRt error type. When libc functions return -1, errno will be fetched via libc.
 pub enum PreemptRtError {
     #[error("c function returned errno: {0}")]
     Errno(c_int),
@@ -16,14 +17,19 @@ pub enum PreemptRtError {
     PriorityAboveMax(c_int, c_int),
     #[error("priority {0} is lower than min priority {1}")]
     PriorityBelowMin(c_int, c_int),
+    #[cfg(feature = "non-linux-stubs")]
     #[error("current platform {0} does not support preempt-rt")]
     NonLinuxPlatform(&'static str),
 }
 
 #[derive(Debug, Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Hash)]
+/// Wrapper around pid_t.
 pub struct Pid(pid_t);
 
 impl Pid {
+    /// The current thread is represented by `0` when using sched_* functions.
+    /// Note that this is different from the value of calling `getpid()`, which returns the
+    /// actual pid for the current _process_.
     pub const fn current_thread() -> Self {
         Pid(0)
     }
@@ -44,9 +50,12 @@ impl fmt::Display for Pid {
 #[repr(i32)]
 #[allow(non_camel_case_types)] // intentionally matching with libc / linux docs
 #[derive(Debug, Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Hash)]
-/// The type of scheduler for use with [`sched_getscheduler`] and [`sched_setscheduler`].
+/// The type of scheduler for use with [`sched_getscheduler`](https://man7.org/linux/man-pages/man3/sched_getscheduler.3p.html)
+/// and [`sched_setscheduler`](https://man7.org/linux/man-pages/man2/sched_setscheduler.2.html).
 /// See [man_sched(7)](https://man7.org/linux/man-pages/man7/sched.7.html) for more details
 /// on the differences in behavior.
+///
+/// This type is a wrapper around the libc::SCHED_* enum.
 pub enum Scheduler {
     /// The default scheduler on non-realtime linux - also known as SCHED_OTHER.
     #[cfg(target_os = "linux")]
@@ -122,7 +131,10 @@ impl Scheduler {
         handle_errno(res)
     }
 
-    pub fn with_priority(self, priority: c_int) -> RtResult<ParameterizedScheduler> {
+    /// Create a ParameterizedScheduler with a numeric priority. Validates that the priority
+    /// is within the bounds of priority_min and priority_max for the chosen scheduler.
+    pub fn with_params(self, params: SchedulerParams) -> RtResult<ParameterizedScheduler> {
+        let priority = params.priority;
         let max = self.priority_max()?;
         let min = self.priority_min()?;
         if priority > max {
@@ -132,7 +144,7 @@ impl Scheduler {
         } else {
             Ok(ParameterizedScheduler {
                 scheduler: self,
-                params: SchedulerParams { priority },
+                params,
             })
         }
     }
@@ -182,23 +194,23 @@ impl From<libc::sched_param> for SchedulerParams {
     }
 }
 
-pub trait IntoSchedParam {
-    fn into_sched_param(self) -> SchedulerParams;
+pub trait IntoSchedParams {
+    fn into_sched_params(self) -> SchedulerParams;
 }
 
-impl IntoSchedParam for i32 {
-    fn into_sched_param(self) -> SchedulerParams {
+impl IntoSchedParams for i32 {
+    fn into_sched_params(self) -> SchedulerParams {
         SchedulerParams {
             priority: self as c_int,
         }
     }
 }
 
-impl<T: IntoSchedParam> IntoSchedParam for Option<T> {
-    fn into_sched_param(self) -> SchedulerParams {
+impl<T: IntoSchedParams> IntoSchedParams for Option<T> {
+    fn into_sched_params(self) -> SchedulerParams {
         match self {
             None => SchedulerParams { priority: 0 },
-            Some(param) => param.into_sched_param(),
+            Some(param) => param.into_sched_params(),
         }
     }
 }
