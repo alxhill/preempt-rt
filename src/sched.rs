@@ -198,6 +198,12 @@ pub trait IntoSchedParams {
     fn into_sched_params(self) -> SchedulerParams;
 }
 
+impl IntoSchedParams for SchedulerParams {
+    fn into_sched_params(self) -> SchedulerParams {
+        self
+    }
+}
+
 impl IntoSchedParams for i32 {
     fn into_sched_params(self) -> SchedulerParams {
         SchedulerParams {
