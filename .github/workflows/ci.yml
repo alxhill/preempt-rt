@@ -21,7 +21,7 @@ jobs:
       - name: Set rustup toolchain
         run: rustup default stable
       - name: Build
-        run: cargo build --target ${{matrix.arch}}-unknown-linux-$${{matrix.libc}}
+        run: cargo build --target ${{matrix.arch}}-unknown-linux-${{matrix.libc}}
 
   test:
     runs-on: ubuntu-latest
