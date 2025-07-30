@@ -10,5 +10,3 @@ libc = { version = "0.2.174", features = ["extra_traits"] }
 thiserror = "2.0.12"
 
 [features]
-default = ["non-linux-stubs"]
-non-linux-stubs = []
