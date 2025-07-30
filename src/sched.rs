@@ -17,7 +17,6 @@ pub enum PreemptRtError {
     PriorityAboveMax(c_int, c_int),
     #[error("priority {0} is lower than min priority {1}")]
     PriorityBelowMin(c_int, c_int),
-    #[cfg(feature = "non-linux-stubs")]
     #[error("current platform {0} does not support preempt-rt")]
     NonLinuxPlatform(&'static str),
 }
@@ -131,21 +130,11 @@ impl Scheduler {
         handle_errno(res)
     }
 
-    /// Create a ParameterizedScheduler with a numeric priority. Validates that the priority
-    /// is within the bounds of priority_min and priority_max for the chosen scheduler.
-    pub fn with_params(self, params: SchedulerParams) -> RtResult<ParameterizedScheduler> {
-        let priority = params.priority;
-        let max = self.priority_max()?;
-        let min = self.priority_min()?;
-        if priority > max {
-            Err(PriorityAboveMax(priority, max))
-        } else if priority < min {
-            Err(PriorityBelowMin(priority, min))
-        } else {
-            Ok(ParameterizedScheduler {
-                scheduler: self,
-                params,
-            })
+    /// Create a ParameterizedScheduler with the given priority.
+    pub fn with_params(self, params: SchedulerParams) -> ParameterizedScheduler {
+        ParameterizedScheduler {
+            scheduler: self,
+            params,
         }
     }
 }
@@ -229,12 +218,23 @@ pub struct ParameterizedScheduler {
 }
 
 impl ParameterizedScheduler {
+    /// Apply this scheduler + params on the current thread, validating that its priority is
+    /// between the valid min & max values for the chosen scheduler.
     #[cfg_attr(target_os = "macos", allow(unused_variables))]
     pub fn set_on(self, pid: Pid) -> RtResult<()> {
-        #[cfg(target_os = "linux")]
-        return set_scheduler(pid, self.scheduler, self.params);
-        #[cfg(target_os = "macos")]
-        return Err(PreemptRtError::NonLinuxPlatform("macos"));
+        let priority = self.params.priority;
+        let max = self.scheduler.priority_max()?;
+        let min = self.scheduler.priority_min()?;
+        if priority > max {
+            Err(PriorityAboveMax(priority, max))
+        } else if priority < min {
+            Err(PriorityBelowMin(priority, min))
+        } else {
+            #[cfg(target_os = "linux")]
+            return set_scheduler(pid, self.scheduler, self.params);
+            #[cfg(target_os = "macos")]
+            return Err(PreemptRtError::NonLinuxPlatform("macos"));
+        }
     }
 
     pub fn set_current(self) -> RtResult<()> {
