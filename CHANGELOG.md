@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.4.0](https://github.com/alxhill/preempt-rt/compare/v0.3.1...v0.4.0) - 2025-07-30
+
+### Added
+
+- [**breaking**] provide thread builder api + remove non-linux-stubs feature ([#12](https://github.com/alxhill/preempt-rt/pull/12))
+
 ## [0.3.1](https://github.com/alxhill/preempt-rt/compare/v0.3.0...v0.3.1) - 2025-07-25
 
 ### Other
