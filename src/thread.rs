@@ -18,12 +18,12 @@ impl Builder {
         }
     }
 
-    pub fn name(&mut self, name: &str) -> &mut Builder {
+    pub fn name(mut self, name: &str) -> Builder {
         self.name = Some(name.into());
         self
     }
 
-    pub fn stack_size(&mut self, stack_size: usize) -> &mut Builder {
+    pub fn stack_size(mut self, stack_size: usize) -> Builder {
         self.stack_size = Some(stack_size);
         self
     }
