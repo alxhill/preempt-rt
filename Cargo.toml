@@ -4,6 +4,9 @@ version = "0.4.1"
 edition = "2024"
 license = "MIT"
 description = "A lightweight Rust library for using the kernel's PREEMPT_RT scheduling functionality"
+repository = "https://github.com/alxhill/preempt-rt"
+categories = ["os::linux-apis"]
+keywords = ["scheduler", "thread-priority", "libc", "linux-kernel", "preempt"]
 
 [dependencies]
 libc = { version = "0.2.174", features = ["extra_traits"] }
