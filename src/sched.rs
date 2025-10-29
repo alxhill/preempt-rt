@@ -76,6 +76,8 @@ pub enum Scheduler {
     /// first-in-first-out lists to handle two threads with the same priority.
     #[cfg(not(target_os = "windows"))]
     SCHED_FIFO = libc::SCHED_FIFO,
+    #[cfg(target_os = "windows")]
+    SCHED_FIFO = 1,
     /// Round-robin scheduler, similar to SCHED_FIFO but with a time quantum.
     #[cfg(not(target_os = "windows"))]
     SCHED_RR = libc::SCHED_RR,
