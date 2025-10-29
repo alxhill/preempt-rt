@@ -12,4 +12,3 @@ keywords = ["scheduler", "thread-priority", "libc", "linux-kernel", "preempt"]
 libc = { version = "0.2.174", features = ["extra_traits"] }
 thiserror = "2.0.12"
 
-[features]
