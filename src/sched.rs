@@ -1,6 +1,5 @@
 use crate::sched::PreemptRtError::{PriorityAboveMax, PriorityBelowMin};
-use libc::{c_int, pid_t};
-use std::fmt;
+use libc::c_int;
 use thiserror::Error;
 
 /// PreemptRt result type
@@ -21,9 +20,15 @@ pub enum PreemptRtError {
     NonLinuxPlatform(&'static str),
 }
 
+#[cfg(not(target_os = "windows"))]
 #[derive(Debug, Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Hash)]
 /// Wrapper around pid_t.
-pub struct Pid(pid_t);
+pub struct Pid(libc::pid_t);
+
+#[cfg(target_os = "windows")]
+#[derive(Debug, Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Hash)]
+/// Dummy pid_t wrapper for windows.
+pub struct Pid(i32);
 
 impl Pid {
     /// The current thread is represented by `0` when using sched_* functions.
@@ -34,15 +39,17 @@ impl Pid {
     }
 }
 
-impl From<Pid> for pid_t {
+#[cfg(not(target_os = "windows"))]
+impl From<Pid> for libc::pid_t {
     fn from(pid: Pid) -> Self {
         pid.0
     }
 }
 
-impl fmt::Display for Pid {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        fmt::Display::fmt(&self.0, f)
+#[cfg(not(target_os = "windows"))]
+impl std::fmt::Display for Pid {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        std::fmt::Display::fmt(&self.0, f)
     }
 }
 
@@ -56,6 +63,8 @@ impl fmt::Display for Pid {
 ///
 /// This type is a wrapper around the libc::SCHED_* enum.
 pub enum Scheduler {
+    #[cfg(target_os = "windows")]
+    SCHED_WINDOWS = 0,
     /// The default scheduler on non-realtime linux - also known as SCHED_OTHER.
     #[cfg(target_os = "linux")]
     SCHED_NORMAL = libc::SCHED_NORMAL,
@@ -65,8 +74,12 @@ pub enum Scheduler {
     /// The realtime FIFO scheduler. All FIFO threads have priority higher than 0 and
     /// preempt SCHED_NORMAL threads. Threads are executed in priority order, using
     /// first-in-first-out lists to handle two threads with the same priority.
+    #[cfg(not(target_os = "windows"))]
     SCHED_FIFO = libc::SCHED_FIFO,
+    #[cfg(target_os = "windows")]
+    SCHED_FIFO = 1,
     /// Round-robin scheduler, similar to SCHED_FIFO but with a time quantum.
+    #[cfg(not(target_os = "windows"))]
     SCHED_RR = libc::SCHED_RR,
     /// Batch scheduler, similar to SCHED_OTHER but assumes the thread is CPU intensive.
     /// The kernel applies a mild penalty to switching to this thread.
@@ -93,7 +106,9 @@ impl TryFrom<c_int> for Scheduler {
             libc::SCHED_NORMAL => Ok(Scheduler::SCHED_NORMAL),
             #[cfg(target_os = "macos")]
             libc::SCHED_OTHER => Ok(Scheduler::SCHED_NORMAL),
+            #[cfg(any(target_os = "linux", target_os = "macos"))]
             libc::SCHED_FIFO => Ok(Scheduler::SCHED_FIFO),
+            #[cfg(any(target_os = "linux", target_os = "macos"))]
             libc::SCHED_RR => Ok(Scheduler::SCHED_RR),
             #[cfg(target_os = "linux")]
             libc::SCHED_BATCH => Ok(Scheduler::SCHED_BATCH),
@@ -106,6 +121,7 @@ impl TryFrom<c_int> for Scheduler {
     }
 }
 
+#[cfg(not(target_os = "windows"))]
 fn handle_errno(result: c_int) -> RtResult<c_int> {
     if result == -1 {
         #[cfg(target_os = "linux")]
@@ -117,6 +133,7 @@ fn handle_errno(result: c_int) -> RtResult<c_int> {
     }
 }
 
+#[cfg(not(target_os = "windows"))]
 impl Scheduler {
     /// Get the highest priority value for a given scheduler.
     pub fn priority_max(&self) -> RtResult<c_int> {
@@ -134,6 +151,33 @@ impl Scheduler {
     pub fn with_params(self, params: SchedulerParams) -> ParameterizedScheduler {
         ParameterizedScheduler {
             scheduler: self,
+            params,
+        }
+    }
+}
+
+#[cfg(target_os = "windows")]
+impl Scheduler {
+    /// Get the highest priority value for a given scheduler.
+    ///
+    /// Returns error on windows.
+    pub fn priority_max(&self) -> RtResult<c_int> {
+        Err(PreemptRtError::NonLinuxPlatform("windows"))
+    }
+
+    /// Get the lowest priority value for a given scheduler.
+    ///
+    /// Returns error on windows.
+    pub fn priority_min(&self) -> RtResult<c_int> {
+        Err(PreemptRtError::NonLinuxPlatform("windows"))
+    }
+
+    /// Create a ParameterizedScheduler with the given priority.
+    ///
+    /// Returns 0 value on windows.
+    pub fn with_params(self, params: SchedulerParams) -> ParameterizedScheduler {
+        ParameterizedScheduler {
+            scheduler: Scheduler::SCHED_WINDOWS,
             params,
         }
     }
@@ -175,6 +219,7 @@ impl From<SchedulerParams> for libc::sched_param {
     }
 }
 
+#[cfg(any(target_os = "macos", target_os = "linux"))]
 impl From<libc::sched_param> for SchedulerParams {
     fn from(param: libc::sched_param) -> Self {
         SchedulerParams {
@@ -210,7 +255,7 @@ impl<T: IntoSchedParams> IntoSchedParams for Option<T> {
     }
 }
 
-#[cfg_attr(target_os = "macos", allow(unused))]
+#[cfg_attr(any(target_os = "macos", target_os = "windows"), allow(unused))]
 #[derive(Debug, Clone)]
 pub struct ParameterizedScheduler {
     scheduler: Scheduler,
@@ -220,7 +265,10 @@ pub struct ParameterizedScheduler {
 impl ParameterizedScheduler {
     /// Apply this scheduler + params on the current thread, validating that its priority is
     /// between the valid min & max values for the chosen scheduler.
-    #[cfg_attr(target_os = "macos", allow(unused_variables))]
+    #[cfg_attr(
+        any(target_os = "macos", target_os = "windows"),
+        allow(unused_variables)
+    )]
     pub fn set_on(self, pid: Pid) -> RtResult<()> {
         let priority = self.params.priority;
         let max = self.scheduler.priority_max()?;
@@ -234,6 +282,8 @@ impl ParameterizedScheduler {
             return set_scheduler(pid, self.scheduler, self.params);
             #[cfg(target_os = "macos")]
             return Err(PreemptRtError::NonLinuxPlatform("macos"));
+            #[cfg(target_os = "windows")]
+            return Err(PreemptRtError::NonLinuxPlatform("windows"));
         }
     }
 

@@ -34,8 +34,8 @@
 //! `libc::sched_setattr` function has to be used to change the values rather than
 //! `libc::sched_setscheduler`.
 //!
-//! This crate has one feature, enabled by default - **`non-linux-stubs`** adds a stub method for
-//! `preempt_rt::thread::try_spawn` that compiles on macOS (but does not attempt to set a
-//! scheduler). This is useful for building/running tests on non-linux platforms.
+//! This crate also includes stub methods for `preempt_rt::thread::try_spawn` that compile on
+//! Windows and macOS (but does not attempt to set a scheduler). This is useful for
+//! building/running tests on non-linux platforms.
 pub mod sched;
 pub mod thread;
