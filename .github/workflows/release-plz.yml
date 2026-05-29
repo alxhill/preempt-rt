@@ -10,8 +10,10 @@ jobs:
     name: Release-plz release
     runs-on: ubuntu-latest
     if: ${{ github.repository_owner == 'alxhill' }}
+    environment: crates
     permissions:
       contents: write
+      id-token: write
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -26,7 +28,6 @@ jobs:
           command: release
         env:
           GITHUB_TOKEN: ${{ secrets.RELEASE_PLZ_TOKEN }}
-          CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
 
   release-plz-pr:
     name: Release-plz PR
