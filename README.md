@@ -6,9 +6,12 @@ the underlying libc functions.
 There are some simple helper functions that can be used directly:
 
 ```rust
+use preempt_rt::sched::{self, Pid, Scheduler, SchedulerParams};
+
 fn main() {
-    let scheduler = get_scheduler(Pid::current_thread()).expect("could not get scheduler");
-    set_scheduler(Scheduler::SCHED_FIFO, 50).expect("could not set scheduler to fifo with priority 50");
+    let scheduler = sched::get_scheduler(Pid::current_thread()).expect("could not get scheduler");
+    sched::set_scheduler(Pid::current_thread(), Scheduler::SCHED_FIFO, SchedulerParams { priority: 50 })
+        .expect("could not set scheduler to fifo with priority 50");
 }
 ```
 
