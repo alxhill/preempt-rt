@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.4.4](https://github.com/alxhill/preempt-rt/compare/v0.4.3...v0.4.4) - 2026-05-29
+
+### Other
+
+- fix outdated set_scheduler example in README ([#22](https://github.com/alxhill/preempt-rt/pull/22))
+- use trusted publishing for release-plz ([#20](https://github.com/alxhill/preempt-rt/pull/20))
+
 ## [0.4.3](https://github.com/alxhill/preempt-rt/compare/v0.4.2...v0.4.3) - 2025-10-29
 
 ### Added
